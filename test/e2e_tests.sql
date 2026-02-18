@@ -1,5 +1,5 @@
 -- ============================================================
--- pg_plan_override — end-to-end test suite (9 tests)
+-- pg_plan_override — end-to-end test suite (10 tests)
 -- ============================================================
 
 \pset pager off
@@ -275,9 +275,65 @@ BEGIN
 END;
 $$;
 
+-- Cleanup
+DELETE FROM plan_override.override_rules;
+SELECT plan_override.refresh_cache();
+
+-- ============================================================
+-- Test 10: EXPLAIN ANALYZE confirms override applied at execution
+-- ============================================================
+DO $$
+DECLARE
+    rec             RECORD;
+    baseline_plan   TEXT := '';
+    override_plan   TEXT := '';
+BEGIN
+    -- Use a low-selectivity filter (matches ~99% of rows) so the optimizer
+    -- naturally prefers Seq Scan, but an index on customer_id exists as
+    -- an alternative when seq scan is disabled.
+
+    -- Step 1: capture baseline plan (no overrides active)
+    FOR rec IN EXECUTE
+        'EXPLAIN ANALYZE SELECT /* analyze_execution_test */ * FROM test_orders WHERE customer_id > 0'
+    LOOP
+        baseline_plan := baseline_plan || rec."QUERY PLAN" || E'\n';
+    END LOOP;
+
+    IF baseline_plan NOT LIKE '%Seq Scan%' THEN
+        RAISE EXCEPTION 'Test 10 FAILED: baseline plan expected Seq Scan, got: %', baseline_plan;
+    END IF;
+
+    -- Step 2: add override that disables seq scan
+    PERFORM plan_override.add_by_pattern(
+        '%analyze_execution_test%',
+        '{"enable_seqscan": "off"}'::jsonb,
+        'Test 10: explain analyze'
+    );
+    PERFORM plan_override.refresh_cache();
+
+    -- Step 3: re-run with override — must switch away from Seq Scan
+    FOR rec IN EXECUTE
+        'EXPLAIN ANALYZE SELECT /* analyze_execution_test */ * FROM test_orders WHERE customer_id > 0'
+    LOOP
+        override_plan := override_plan || rec."QUERY PLAN" || E'\n';
+    END LOOP;
+
+    IF override_plan LIKE '%Seq Scan%' THEN
+        RAISE EXCEPTION 'Test 10 FAILED: override plan still uses Seq Scan: %', override_plan;
+    END IF;
+
+    -- Must contain actual execution stats (proves query ran, not just planned)
+    IF override_plan NOT LIKE '%actual time%' THEN
+        RAISE EXCEPTION 'Test 10 FAILED: EXPLAIN ANALYZE missing execution stats: %', override_plan;
+    END IF;
+
+    RAISE NOTICE 'Test 10 PASSED: baseline used Seq Scan, override switched plan (EXPLAIN ANALYZE)';
+END;
+$$;
+
 -- Final cleanup
 DELETE FROM plan_override.override_rules;
 DROP TABLE test_orders;
 
 \echo ''
-\echo 'All 9 tests passed!'
+\echo 'All 10 tests passed!'

@@ -17,5 +17,5 @@ psql -v ON_ERROR_STOP=1 -f /test/e2e_tests.sql
 
 echo ""
 echo "========================================="
-echo "  All 9 tests passed!"
+echo "  All 10 tests passed!"
 echo "========================================="

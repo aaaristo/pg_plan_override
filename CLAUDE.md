@@ -18,7 +18,7 @@ docker-compose.yml            # Three services: build, pg, test
 .gitignore                    # Excludes build artifacts (*.o, *.so, *.bc)
 ```
 
-Build artifacts (`*.o`, `*.so`, `*.bc`) appear in `src/` when `make` runs — excluded by .gitignore.
+Intermediate build artifacts (`*.o`, `*.bc`) appear in `src/` when `make` runs. The three installable files (`pg_plan_override.so`, `.control`, `--1.0.sql`) are copied to `build/` by the Docker build step. Both directories are excluded by .gitignore.
 
 ## Build and test
 

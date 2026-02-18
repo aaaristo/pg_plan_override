@@ -33,6 +33,23 @@ docker-compose build build
 docker-compose run --rm build
 ```
 
+This compiles against PostgreSQL 12 headers and copies the installable files to `build/`:
+
+```
+build/
+  pg_plan_override.so
+  pg_plan_override.control
+  pg_plan_override--1.0.sql
+```
+
+To install on a target system, copy them to the PostgreSQL directories:
+
+```bash
+cp build/pg_plan_override.so       $(pg_config --pkglibdir)/
+cp build/pg_plan_override.control  $(pg_config --sharedir)/extension/
+cp build/pg_plan_override--1.0.sql $(pg_config --sharedir)/extension/
+```
+
 ## Configuration
 
 Add to `postgresql.conf`:

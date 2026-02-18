@@ -7,12 +7,13 @@ services:
     profiles: ["build"]
     volumes:
       - ./src:/build
-    entrypoint: ["make"]
+      - ./build:/output
+    entrypoint: ["bash", "-c", "make && cp pg_plan_override.so pg_plan_override.control pg_plan_override--1.0.sql /output/"]
 
   pg:
     image: postgres:12
     volumes:
-      - ./src:/ext:ro
+      - ./build:/ext:ro
     environment:
       POSTGRES_HOST_AUTH_METHOD: trust
     command:

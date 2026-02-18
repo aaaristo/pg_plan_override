@@ -8,6 +8,13 @@ Intercepts the planner hook and applies GUC overrides (e.g. `enable_seqscan`, `w
 
 The extension hooks into PostgreSQL's **planner** (not the executor). When a query matches a rule, the specified GUCs are temporarily set, the planner generates a plan influenced by those settings, and the GUCs are immediately restored. The executor then runs the already-decided plan — it never sees the overridden values. This means the override shapes the plan once at planning time, and the plan carries that effect through execution.
 
+## Caveats
+
+- **Bad rules produce bad plans.** The extension applies whatever GUC overrides you give it — if a rule disables the only viable join strategy, the planner will do its best with what's left. Test overrides with `EXPLAIN` before committing to them.
+- **Cache TTL lag.** Each backend refreshes its rule cache on a timer (default 60 seconds). After inserting or updating a rule, it won't take effect until the next refresh. Call `plan_override.refresh_cache()` for immediate effect in the current session.
+- **Pattern matching cost scales with rule count.** Every plannable query is checked against all enabled rules. A handful of rules is negligible; hundreds may add measurable overhead to planning time.
+- **Per-backend caches are independent.** Each backend loads its own copy of the rules via SPI. There is no shared-memory broadcast — one backend calling `refresh_cache()` does not refresh other backends.
+
 ## Features
 
 - **Pattern matching** — `%` and `_` wildcards against query text

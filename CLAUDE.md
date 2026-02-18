@@ -11,7 +11,7 @@ src/
   pg_plan_override--1.0.sql   # SQL objects (override_rules table, helper functions)
   Makefile                    # PGXS-based build
 test/
-  e2e_tests.sql              # 9 DO-block tests with RAISE EXCEPTION assertions
+  e2e_tests.sql              # 10 DO-block tests with RAISE EXCEPTION assertions
   run_tests.sh               # Test entrypoint (waits for PG, runs psql)
 Dockerfile.build              # Build environment image (postgres:12 + build-essential + pg-server-dev)
 docker-compose.yml            # Three services: build, pg, test
@@ -49,6 +49,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/). 
 - Rules are stored in `plan_override.override_rules` and cached in memory with configurable TTL
 - Pattern matching uses LIKE-style `%` and `_` wildcards against query text
 - On PG12-13, pattern matching uses `debug_query_string`; on PG14+, uses the `query_string` parameter passed to the planner hook
+- GUC overrides are only active during planning — the planner produces a plan influenced by the overrides, then GUCs are restored immediately. The executor runs the already-decided plan; it never sees the overridden values.
 - GUCs are always restored after planning, even on error (PG_TRY/PG_CATCH)
 - The `loading_rules` flag prevents reentrancy when SPI queries go through the planner hook
 - `load_rules()` checks the catalog for the `override_rules` table before querying it, so the extension works safely with `shared_preload_libraries` before `CREATE EXTENSION` is run

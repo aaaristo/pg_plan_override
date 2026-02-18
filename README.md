@@ -4,6 +4,10 @@ Dynamic per-query planner GUC overrides for PostgreSQL 12+.
 
 Intercepts the planner hook and applies GUC overrides (e.g. `enable_seqscan`, `work_mem`) to matching queries, then restores originals after planning completes. Queries are matched by `queryId` (exact) or `LIKE`-style pattern against the query text.
 
+## How it works
+
+The extension hooks into PostgreSQL's **planner** (not the executor). When a query matches a rule, the specified GUCs are temporarily set, the planner generates a plan influenced by those settings, and the GUCs are immediately restored. The executor then runs the already-decided plan — it never sees the overridden values. This means the override shapes the plan once at planning time, and the plan carries that effect through execution.
+
 ## Features
 
 - **Pattern matching** — `%` and `_` wildcards against query text
@@ -120,14 +124,14 @@ docker-compose build build
 # Compile extension (after code changes)
 docker-compose run --rm build
 
-# Run all 9 e2e tests
+# Run all 10 e2e tests
 docker-compose up --abort-on-container-exit --exit-code-from test
 
 # Cleanup
 docker-compose down -v
 ```
 
-Exit code 0 means all 9 tests passed. A non-zero exit code includes a descriptive error message from the failing test.
+Exit code 0 means all 10 tests passed. A non-zero exit code includes a descriptive error message from the failing test.
 
 ## Contributing
 

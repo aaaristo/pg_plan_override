@@ -65,6 +65,8 @@ Add to `postgresql.conf`:
 shared_preload_libraries = 'pg_plan_override'
 ```
 
+Restart PostgreSQL for this to take effect — a reload is not sufficient.
+
 Then create the extension:
 
 ```sql

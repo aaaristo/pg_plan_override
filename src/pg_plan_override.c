@@ -35,8 +35,10 @@ PG_MODULE_MAGIC;
 
 typedef struct OverrideRule
 {
+	int		id;				/* rule PK from override_rules.id */
 	int64	query_id;		/* 0 if not set */
 	char   *query_pattern;	/* NULL if not set */
+	char   *description;	/* human-readable note (NULL if not set) */
 	char  **guc_names;
 	char  **guc_values;
 	int		num_gucs;
@@ -222,8 +224,10 @@ po_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	}
 
 	if (po_debug)
-		elog(LOG, "pg_plan_override: applied %d GUC override(s) for query (queryId=%ld)",
-			 rule->num_gucs, (long) rule->query_id);
+		elog(LOG, "pg_plan_override: rule %d (\"%s\") matched — applied %d GUC override(s)",
+			 rule->id,
+			 rule->description ? rule->description : "(no description)",
+			 rule->num_gucs);
 
 	/* Call planner with overrides in effect, guarantee restore on error */
 	PG_TRY();
@@ -323,7 +327,7 @@ load_rules(void)
 	}
 
 	ret = SPI_execute(
-		"SELECT query_id, query_pattern, gucs, priority "
+		"SELECT id, query_id, query_pattern, gucs, priority, description "
 		"FROM plan_override.override_rules "
 		"WHERE enabled "
 		"ORDER BY priority DESC",
@@ -358,19 +362,23 @@ load_rules(void)
 		Datum		datum;
 		OverrideRule *rule = &cached_rules[i];
 
-		/* query_id */
+		/* id */
 		datum = SPI_getbinval(tuple, tupdesc, 1, &isnull);
+		rule->id = isnull ? 0 : DatumGetInt32(datum);
+
+		/* query_id */
+		datum = SPI_getbinval(tuple, tupdesc, 2, &isnull);
 		rule->query_id = isnull ? 0 : DatumGetInt64(datum);
 
 		/* query_pattern */
-		datum = SPI_getbinval(tuple, tupdesc, 2, &isnull);
+		datum = SPI_getbinval(tuple, tupdesc, 3, &isnull);
 		if (!isnull)
 			rule->query_pattern = pstrdup(TextDatumGetCString(datum));
 		else
 			rule->query_pattern = NULL;
 
 		/* gucs (JSONB) */
-		datum = SPI_getbinval(tuple, tupdesc, 3, &isnull);
+		datum = SPI_getbinval(tuple, tupdesc, 4, &isnull);
 		if (!isnull)
 			rule->num_gucs = parse_jsonb_gucs(datum,
 											  &rule->guc_names,
@@ -380,8 +388,15 @@ load_rules(void)
 			rule->num_gucs = 0;
 
 		/* priority */
-		datum = SPI_getbinval(tuple, tupdesc, 4, &isnull);
+		datum = SPI_getbinval(tuple, tupdesc, 5, &isnull);
 		rule->priority = isnull ? 0 : DatumGetInt32(datum);
+
+		/* description */
+		datum = SPI_getbinval(tuple, tupdesc, 6, &isnull);
+		if (!isnull)
+			rule->description = pstrdup(TextDatumGetCString(datum));
+		else
+			rule->description = NULL;
 	}
 
 	MemoryContextSwitchTo(oldcxt);

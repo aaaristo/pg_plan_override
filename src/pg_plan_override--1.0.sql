@@ -43,3 +43,7 @@ $$ LANGUAGE SQL;
 -- Force cache refresh (C function)
 CREATE FUNCTION plan_override.refresh_cache() RETURNS VOID
     AS 'MODULE_PATHNAME', 'pg_plan_override_refresh_cache' LANGUAGE C STRICT;
+
+-- Allow all users to read rules (the planner hook runs as the current user)
+GRANT USAGE ON SCHEMA plan_override TO PUBLIC;
+GRANT SELECT ON plan_override.override_rules TO PUBLIC;

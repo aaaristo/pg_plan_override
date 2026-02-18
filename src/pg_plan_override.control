@@ -1,0 +1,5 @@
+comment = 'Dynamic per-query planner GUC overrides'
+default_version = '1.0'
+module_pathname = '$libdir/pg_plan_override'
+relocatable = false
+schema = plan_override

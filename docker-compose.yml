@@ -1,0 +1,46 @@
+services:
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+    image: pg-plan-override-build:latest
+    profiles: ["build"]
+    volumes:
+      - ./src:/build
+    entrypoint: ["make"]
+
+  pg:
+    image: postgres:12
+    volumes:
+      - ./src:/ext:ro
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command:
+      - bash
+      - -c
+      - |
+        ln -sf /ext/pg_plan_override.so /usr/lib/postgresql/12/lib/
+        ln -sf /ext/pg_plan_override.control /usr/share/postgresql/12/extension/
+        ln -sf /ext/pg_plan_override--1.0.sql /usr/share/postgresql/12/extension/
+        exec docker-entrypoint.sh postgres \
+          -c shared_preload_libraries=pg_plan_override \
+          -c log_min_messages=LOG
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+  test:
+    image: postgres:12
+    depends_on:
+      pg:
+        condition: service_healthy
+    volumes:
+      - ./test:/test:ro
+    environment:
+      PGHOST: pg
+      PGUSER: postgres
+      PGDATABASE: postgres
+    entrypoint: ["bash", "/test/run_tests.sh"]

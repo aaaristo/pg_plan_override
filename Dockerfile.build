@@ -1,0 +1,9 @@
+FROM postgres:12
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential \
+       postgresql-server-dev-12 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build

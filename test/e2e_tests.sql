@@ -1,5 +1,5 @@
 -- ============================================================
--- pg_plan_override — end-to-end test suite (10 tests)
+-- pg_plan_override — end-to-end test suite (11 tests)
 -- ============================================================
 
 \pset pager off
@@ -331,9 +331,56 @@ BEGIN
 END;
 $$;
 
+-- Cleanup
+DELETE FROM plan_override.override_rules;
+SELECT plan_override.refresh_cache();
+
+-- ============================================================
+-- Test 11: Non-matching query keeps default plan while rule active
+-- ============================================================
+DO $$
+DECLARE
+    rec             RECORD;
+    matching_plan   TEXT := '';
+    unmatched_plan  TEXT := '';
+BEGIN
+    -- Add a rule that only matches a specific comment tag
+    PERFORM plan_override.add_by_pattern(
+        '%only_this_query%',
+        '{"enable_seqscan": "off"}'::jsonb,
+        'Test 11: selective match'
+    );
+    PERFORM plan_override.refresh_cache();
+
+    -- Matching query: should NOT use Seq Scan (override disables it)
+    FOR rec IN EXECUTE
+        'EXPLAIN SELECT /* only_this_query */ * FROM test_orders WHERE customer_id > 0'
+    LOOP
+        matching_plan := matching_plan || rec."QUERY PLAN" || E'\n';
+    END LOOP;
+
+    IF matching_plan LIKE '%Seq Scan%' THEN
+        RAISE EXCEPTION 'Test 11 FAILED: matching query still uses Seq Scan: %', matching_plan;
+    END IF;
+
+    -- Non-matching query (full table scan, no WHERE): should use Seq Scan
+    FOR rec IN EXECUTE
+        'EXPLAIN SELECT /* different_query */ * FROM test_orders'
+    LOOP
+        unmatched_plan := unmatched_plan || rec."QUERY PLAN" || E'\n';
+    END LOOP;
+
+    IF unmatched_plan NOT LIKE '%Seq Scan%' THEN
+        RAISE EXCEPTION 'Test 11 FAILED: non-matching query plan was altered: %', unmatched_plan;
+    END IF;
+
+    RAISE NOTICE 'Test 11 PASSED: non-matching query keeps default plan';
+END;
+$$;
+
 -- Final cleanup
 DELETE FROM plan_override.override_rules;
 DROP TABLE test_orders;
 
 \echo ''
-\echo 'All 10 tests passed!'
+\echo 'All 11 tests passed!'
